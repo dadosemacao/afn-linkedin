@@ -1,0 +1,478 @@
+# ===============================================================
+# scrape_databricks_platform.py
+# ===============================================================
+# Requisitos:
+#   pip install selenium beautifulsoup4 pandas webdriver-manager
+# Uso:
+#   python scrape_databricks_platform.py
+# ===============================================================
+
+
+# ----------------------- IMPORTS -----------------------
+
+# Built-in
+import base64
+import os
+import json
+import time
+import csv
+import sqlite3
+from datetime import datetime
+from urllib.parse import urljoin
+
+# Third-party
+import requests
+import pandas as pd
+from dotenv import load_dotenv
+import openai
+from bs4 import BeautifulSoup
+
+# Selenium
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
+
+
+# ===============================================================
+# ----------------------- UTILIDADES ---------------------------
+# ===============================================================
+
+def baixar_e_converter_imagem(url):
+    if not url:
+        return ""
+
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            return base64.b64encode(resp.content).decode("utf-8")
+        else:
+            return ""
+    except:
+        return ""
+
+
+
+def limpar_titulo(titulo):
+    """Remove prefixos como 'Product/2025...' e retorna só o título."""
+    if not titulo:
+        return ""
+
+    if "/" in titulo:
+        titulo = titulo.split("/")[-1].strip()
+
+    import re
+    match = re.search(r"[A-Z][a-z]+.*", titulo)
+    if match:
+        return match.group(0).strip()
+
+    return titulo.strip()
+
+
+
+def get_meta_image_from_page(html):
+    soup = BeautifulSoup(html, "html.parser")
+    meta = soup.find("meta", property="og:image")
+    if meta and meta.get("content"):
+        return meta["content"]
+
+    img = soup.find("img")
+    if img and img.get("src"):
+        return img.get("src")
+
+    return ""
+
+
+
+# ===============================================================
+# ----------------------- S E L E N I U M -----------------------
+# ===============================================================
+
+BASE = "https://www.databricks.com"
+CATEGORY_URL = "https://www.databricks.com/blog/category/platform"
+OUTPUT_CSV = "databricks_platform_posts.csv"
+
+options = webdriver.ChromeOptions()
+options.add_argument("--headless=new")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-gpu")
+options.add_argument("--disable-dev-shm-usage")
+
+service = Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service, options=options)
+wait = WebDriverWait(driver, 20)
+
+
+
+# ===============================================================
+# ----------------------- SCRAPER -------------------------------
+# ===============================================================
+
+try:
+    driver.get(CATEGORY_URL)
+    time.sleep(2)
+
+    try:
+        wait.until(EC.presence_of_element_located(
+            (By.CSS_SELECTOR, "main, .blog-archive, .category-results-wrapper")
+        ))
+    except:
+        pass
+
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(2)
+
+    soup = BeautifulSoup(driver.page_source, "html.parser")
+    anchors = soup.select("a[href*='/blog/']")
+
+    seen = set()
+    results = []
+
+    for a in anchors:
+        href = a.get("href")
+        if not href:
+            continue
+
+        if href.startswith("/"):
+            link = urljoin(BASE, href)
+        elif href.startswith("http"):
+            link = href
+        else:
+            link = urljoin(BASE, href)
+
+        if "/blog/" not in link:
+            continue
+
+        if link in seen:
+            continue
+        seen.add(link)
+
+        parent = a
+        title = a.get_text(strip=True)
+        card = None
+
+        for _ in range(4):
+            parent = parent.parent
+            if parent is None:
+                break
+            cls = parent.get("class") or []
+            if any(c in ("category-results-wrapper","blog-grid-card","post-card",
+                         "card","article","card__content") for c in cls):
+                card = parent
+                break
+
+        post_type = ""
+        cover_image = ""
+
+        if card:
+            label = card.select_one(".tag, .post-type, .kicker, .eyebrow, .meta .type")
+            if label:
+                post_type = label.get_text(strip=True)
+            else:
+                mytxt = card.get_text(" ", strip=True)
+                for t in ["Product","Engineering","Article","Announcement","Solutions",
+                          "Customer","Research","Data","Security","Announcements"]:
+                    if t in mytxt.split():
+                        post_type = t
+                        break
+
+            img = card.select_one("img[data-main-image], img")
+            if img:
+                cover_image = img.get("src") or img.get("data-src") or img.get("data-main-image") or ""
+                if cover_image and cover_image.startswith("//"):
+                    cover_image = "https:" + cover_image
+                if cover_image and cover_image.startswith("/"):
+                    cover_image = urljoin(BASE, cover_image)
+
+        if not post_type or not cover_image:
+            try:
+                driver.execute_script("window.open('');")
+                driver.switch_to.window(driver.window_handles[-1])
+                driver.get(link)
+                time.sleep(1.5)
+
+                page_html = driver.page_source
+                img_meta = get_meta_image_from_page(page_html)
+                if img_meta:
+                    cover_image = img_meta
+
+                soup_post = BeautifulSoup(page_html, "html.parser")
+                badge = soup_post.select_one(".post-kicker, .kicker, .eyebrow, .post-meta .type")
+                if badge:
+                    post_type = badge.get_text(strip=True)
+
+                if not title:
+                    h1 = soup_post.find("h1")
+                    if h1:
+                        title = h1.get_text(strip=True)
+
+            except:
+                pass
+
+            finally:
+                try:
+                    driver.close()
+                    driver.switch_to.window(driver.window_handles[0])
+                except:
+                    pass
+
+        results.append({
+            "post_type": post_type or "Unknown",
+            "title": limpar_titulo(title) or "",
+            "cover_image": cover_image or "",
+            "link": link
+        })
+
+    df = pd.DataFrame(results).drop_duplicates(subset=["link"])
+    df = df[df["post_type"].str.lower() == "product"]
+    df.to_csv(OUTPUT_CSV, index=False)
+
+    print(f"Extração finalizada — {len(df)} posts salvos em {OUTPUT_CSV}")
+
+finally:
+    driver.quit()
+
+
+
+# ===============================================================
+# ----------------------- CONFIG EMMA ----------------------------
+# ===============================================================
+
+load_dotenv()
+client = openai.Client()
+
+INPUT_CSV = "databricks_platform_posts.csv"
+OUTPUT_CSV = "databricks_platform_posts_with_resumos.csv"
+
+RESUMOS_ARQUIVO = "resumos_emma.json"
+
+
+
+# ===============================================================
+# ----------------------- MEMÓRIA JSON --------------------------
+# ===============================================================
+
+def carregar_resumos():
+    if not os.path.exists(RESUMOS_ARQUIVO):
+        with open(RESUMOS_ARQUIVO, "w", encoding="utf-8") as f:
+            json.dump([], f, indent=2, ensure_ascii=False)
+
+    with open(RESUMOS_ARQUIVO, "r", encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return []
+
+
+def salvar_resumo_local(resumo):
+    resumos = carregar_resumos()
+    resumos.append(resumo)
+    with open(RESUMOS_ARQUIVO, "w", encoding="utf-8") as f:
+        json.dump(resumos, f, indent=2, ensure_ascii=False)
+
+
+
+# ===============================================================
+# ------------------------ GERAR RESUMO -------------------------
+# ===============================================================
+
+def gerar_resumo_do_link(link):
+    mensagens = [
+        {
+            "role": "system",
+            "content": (
+                "Você é Emma, um ChatBot especialista em criar resumos profissionais "
+                "com menos de 2500 caracteres, nada além disso, sempre claros, diretos "
+                "e fáceis de ler."
+            )
+        },
+        {
+            "role": "user",
+            "content": f"Faça um resumo com menos de 2500 caracteres desse link: {link}"
+        }
+    ]
+
+    resposta = client.chat.completions.create(
+        model="gpt-4.1",
+        messages=mensagens
+    )
+
+    return resposta.choices[0].message.content
+
+
+
+# ===============================================================
+# -------------------------- SQLITE -----------------------------
+# ===============================================================
+
+DB_NAME = "resumos_processados.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS processados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            link TEXT UNIQUE
+        );
+    """)
+    conn.commit()
+    conn.close()
+
+
+def mark_as_processed(link):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO processados (link) VALUES (?)", (link,))
+    conn.commit()
+    conn.close()
+
+
+def filter_unprocessed(links):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT link FROM processados;")
+    processados = set(row[0] for row in cursor.fetchall())
+    conn.close()
+    return [l for l in links if l not in processados]
+
+
+
+# ===============================================================
+# ------------------------ PROCESSAR CSV ------------------------
+# ===============================================================
+
+def processar_csv():
+    print("\n📄 Lendo CSV de posts...")
+    df = pd.read_csv(INPUT_CSV)
+
+    if "resumo" not in df.columns:
+        df["resumo"] = ""
+    if "data_resumo" not in df.columns:
+        df["data_resumo"] = ""
+
+    print(f"🔎 {len(df)} posts encontrados.\n")
+
+    resumos_local = carregar_resumos()
+    links_processados = {item["link"] for item in resumos_local}
+
+    for index, row in df.iterrows():
+        link = row["link"]
+
+        if link in links_processados:
+            print(f"✔ Resumo já existe — pulando: {link}")
+            continue
+
+        print(f"✨ Resumindo post {index+1}/{len(df)}")
+        print(f"🔗 {link}")
+
+        resumo_texto = gerar_resumo_do_link(link)
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+        separador = "\n" + ("-" * 50) + "\n"
+        df.at[index, "resumo"] = separador + resumo_texto
+        df.at[index, "data_resumo"] = agora
+
+        resumo_registro = {
+            "titulo": row.get("title", ""),
+            "link": link,
+            "data": agora,
+            "conteudo": resumo_texto
+        }
+
+        salvar_resumo_local(resumo_registro)
+
+        print("💾 Resumo salvo.\n")
+
+    df.to_csv(INPUT_CSV, index=False)
+    print(f"\n🎉 FINALIZADO! O CSV foi atualizado com os resumos.")
+
+
+
+# ===============================================================
+# -------------------------- EXECUTAR ---------------------------
+# ===============================================================
+
+if __name__ == "__main__":
+    processar_csv()
+
+
+
+# ===============================================================
+# ----------------------- ENVIO PARA n8n ------------------------
+# ===============================================================
+
+
+#teste
+#WEBHOOK_URL = "https://primary-production-9f8d.up.railway.app/webhook-test/343c34a4-e36f-4a72-920e-c5f1be3591dd"
+
+#producao
+WEBHOOK_URL = "https://primary-production-9f8d.up.railway.app/webhook/343c34a4-e36f-4a72-920e-c5f1be3591dd"
+
+def baixar_imagem_binaria(url):
+    if not url:
+        return None
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            return resp.content
+        return None
+    except:
+        return None
+
+
+def carregar_posts(csv_path):
+    posts = []
+    with open(csv_path, newline='', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+
+        for row in reader:
+            img_url = row.get("cover_image", "")
+            img_bin = baixar_imagem_binaria(img_url)
+
+            # Criar bloco binário no formato correto para o n8n
+            binary_block = {}
+            if img_bin:
+                binary_block = {
+                    "binary": {
+                        "imagem": {
+                            "data": base64.b64encode(img_bin).decode("utf-8"),
+                            "mimeType": "image/jpeg",
+                            "fileName": "cover.jpg"
+                        }
+                    }
+                }
+
+            post = {
+                "titulo": row.get("title", ""),
+                "resumo": row.get("resumo", ""),
+                "link": row.get("link", "")
+            }
+
+            if binary_block:
+                post.update(binary_block)
+
+            posts.append(post)
+
+    return posts
+
+
+def enviar_para_n8n(posts):
+    try:
+        response = requests.post(WEBHOOK_URL, json=posts)
+        print("Status:", response.status_code)
+        print("Resposta:", response.text)
+    except Exception as e:
+        print("Erro ao enviar:", e)
+
+
+csv_path = "databricks_platform_posts.csv"
+posts = carregar_posts(csv_path)
+
+if len(posts) == 0:
+    print("Nenhum post encontrado!")
+else:
+    enviar_para_n8n(posts)
