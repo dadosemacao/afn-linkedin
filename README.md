@@ -30,10 +30,81 @@ config.ini              # Configurações da aplicação
 
 ## Pré-requisitos
 
+### Opção 1: Docker (Recomendado)
+
+- Docker Engine 20.10+
+- Docker Compose 2.0+
+- Chave de API OpenAI
+
+### Opção 2: Python Nativo
+
 - Python 3.9 ou superior
 - Google Chrome instalado
 - Chave de API OpenAI
 - Acesso ao webhook n8n (opcional)
+
+---
+
+## Instalação e Uso
+
+### 🐳 Opção 1: Docker (Recomendado)
+
+**Início Rápido - 5 Minutos**
+
+#### Linux/Mac:
+```bash
+# Setup automático
+chmod +x setup_docker.sh
+./setup_docker.sh
+
+# Configurar API Key
+nano .env
+# Adicione: OPENAI_API_KEY=sk-sua-chave-aqui
+
+# Iniciar
+docker-compose up -d
+
+# Monitorar
+docker-compose logs -f
+```
+
+#### Windows (PowerShell):
+```powershell
+# Setup automático
+.\setup_docker.ps1
+
+# Configurar API Key
+notepad .env
+
+# Iniciar
+docker-compose up -d
+
+# Monitorar
+docker-compose logs -f
+```
+
+**Agendamento Automático**:
+- **Padrão**: Segunda-feira às 08:00
+- **Customização**: Edite `SCHEDULE_CRON` no `.env`
+- **Guia Completo**: Ver `DOCKER_QUICKSTART.md`
+
+**Comandos Docker Essenciais**:
+```bash
+docker-compose up -d          # Iniciar
+docker-compose down           # Parar
+docker-compose logs -f        # Ver logs
+docker-compose ps             # Status
+docker-compose restart        # Reiniciar
+```
+
+**Executar Manualmente** (fora do agendamento):
+```bash
+docker-compose exec afn-linkedin-processor python run.py
+```
+
+---
+
+### 🐍 Opção 2: Python Nativo
 
 ## Instalação
 
@@ -227,12 +298,44 @@ Ao final da execução, o sistema exibe:
 
 Copyright © 2025 - Sistema AFN
 
+## Docker - Recursos Avançados
+
+### Personalizar Agendamento
+
+Edite `.env` e ajuste `SCHEDULE_CRON`:
+
+| Descrição | Expressão Cron |
+|-----------|----------------|
+| Segunda-feira 08:00 (padrão) | `0 8 * * 1` |
+| Segunda a Sexta 09:00 | `0 9 * * 1-5` |
+| Todos os dias 10:00 | `0 10 * * *` |
+| A cada 6 horas | `0 */6 * * *` |
+
+### Volumes Persistentes
+
+```
+logs/       → Logs da aplicação
+database/   → Banco de dados SQLite
+graphics/   → Gráficos gerados
+reports/    → Relatórios
+dados/      → Datasets
+```
+
+### Documentação Docker
+
+- **Início Rápido**: `DOCKER_QUICKSTART.md`
+- **Guia Completo**: `docs/GUIA_DOCKER.md`
+- **Implementação Técnica**: `docs/IMPLEMENTACAO_DOCKER_2025-12-09.md`
+
+---
+
 ## Suporte
 
 Para dúvidas ou problemas:
 1. Consulte logs em `logs/application.log`
 2. Verifique documentação em `docs/`
 3. Analise código fonte (bem documentado)
+4. Docker: `docker-compose logs -f`
 
 ---
 

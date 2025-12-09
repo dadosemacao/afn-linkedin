@@ -1,0 +1,89 @@
+# ================================================================
+# Databricks Post Processor - Docker Compose Configuration
+# ================================================================
+# Orquestração da aplicação com agendamento automático
+# ================================================================
+
+version: '3.8'
+
+services:
+  afn-linkedin-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: afn-linkedin-processor
+    restart: unless-stopped
+    
+    environment:
+      # Configurações de ambiente
+      - TZ=America/Sao_Paulo
+      - PYTHONUNBUFFERED=1
+      
+      # OpenAI API Key (OBRIGATÓRIO)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Configurações opcionais de override
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SCRAPER_HEADLESS=${SCRAPER_HEADLESS:-true}
+      
+      # Agendamento (formato cron)
+      - SCHEDULE_ENABLED=${SCHEDULE_ENABLED:-true}
+      - SCHEDULE_CRON=${SCHEDULE_CRON:-0 8 * * 1}
+      # Formato: minuto hora dia mês dia-da-semana
+      # Padrão: 0 8 * * 1 = Segunda-feira às 08:00
+      
+    volumes:
+      # Persistência de dados
+      - ./logs:/app/logs
+      - ./database:/app/database
+      - ./graphics:/app/graphics
+      - ./reports:/app/reports
+      - ./dados:/app/dados
+      - ./databricks_platform_posts.csv:/app/databricks_platform_posts.csv
+      
+      # Configuração (read-only)
+      - ./config.ini:/app/config.ini:ro
+      
+    networks:
+      - afn-network
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 1h
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+
+networks:
+  afn-network:
+    driver: bridge
+    name: afn-linkedin-network
+
+# ================================================================
+# Comandos úteis:
+# ================================================================
+# Iniciar serviços:
+#   docker-compose up -d
+#
+# Ver logs:
+#   docker-compose logs -f
+#
+# Parar serviços:
+#   docker-compose down
+#
+# Executar manualmente:
+#   docker-compose exec afn-linkedin-processor python run.py
+#
+# Reconstruir imagem:
+#   docker-compose up -d --build
+#
+# Ver status:
+#   docker-compose ps
+# ================================================================
+
