@@ -140,8 +140,9 @@ class Application:
             
             if not posts:
                 logger.warning("Nenhum post para enviar")
-                LoggerFactory.log_operation_end(logger, "Integracao n8n", False)
-                return False
+                # Nao e erro: apenas nao ha nada para enviar.
+                LoggerFactory.log_operation_end(logger, "Integracao n8n", True)
+                return True
             
             # Filtra posts com resumo
             posts_with_summary = [
@@ -151,8 +152,9 @@ class Application:
             
             if not posts_with_summary:
                 logger.warning("Nenhum post com resumo para enviar")
-                LoggerFactory.log_operation_end(logger, "Integracao n8n", False)
-                return False
+                # Nao e erro: pipeline pode encerrar com sucesso mesmo sem envio.
+                LoggerFactory.log_operation_end(logger, "Integracao n8n", True)
+                return True
             
             # Envia para n8n
             success = self.n8n_integration.send_posts(posts_with_summary)

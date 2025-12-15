@@ -8,6 +8,8 @@ Date: 2025-12-09
 """
 
 import time
+import os
+import shutil
 from typing import List, Dict, Optional, Set
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
@@ -18,7 +20,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
 
 from src.config import config
 from src.logger import get_logger
@@ -53,14 +54,46 @@ class SeleniumDriver:
             options.add_experimental_option("excludeSwitches", ["enable-automation"])
             options.add_experimental_option('useAutomationExtension', False)
             
-            service = Service(ChromeDriverManager().install())
-            self.driver = webdriver.Chrome(service=service, options=options)
+            # Define binário do browser quando disponível (Docker geralmente usa Chromium).
+            chrome_bin = (
+                os.getenv("CHROME_BIN")
+                or shutil.which("google-chrome")
+                or shutil.which("google-chrome-stable")
+                or shutil.which("chromium")
+                or shutil.which("chromium-browser")
+            )
+            if chrome_bin:
+                options.binary_location = chrome_bin
+
+            # Prioriza chromedriver do sistema (ex.: pacote chromium-driver no Docker).
+            chromedriver_path = os.getenv("CHROMEDRIVER_PATH") or shutil.which("chromedriver")
+            if chromedriver_path:
+                service = Service(chromedriver_path)
+                self.driver = webdriver.Chrome(service=service, options=options)
+            else:
+                # Fallback: Selenium Manager (Selenium 4.6+) tenta resolver o driver automaticamente.
+                self.driver = webdriver.Chrome(options=options)
+
             self.wait = WebDriverWait(self.driver, config.selenium_timeout)
             
             logger.info("Driver Selenium inicializado com sucesso")
             
-        except WebDriverException as exc:
-            logger.error(f"Erro ao inicializar Selenium: {str(exc)}")
+        except Exception as exc:
+            msg = str(exc)
+            lower = msg.lower()
+            if (
+                "google-chrome" in lower
+                or "chrome binary" in lower
+                or "chromium" in lower and "not found" in lower
+                or "cannot find" in lower and "chrome" in lower
+            ):
+                raise RuntimeError(
+                    "Falha ao inicializar o Selenium: browser (Chrome/Chromium) nao encontrado no ambiente. "
+                    "Em Docker, instale chromium + chromium-driver (ou google-chrome) e garanta que o binario "
+                    "esteja no PATH. Opcionalmente defina CHROME_BIN e CHROMEDRIVER_PATH."
+                ) from exc
+
+            logger.error(f"Erro ao inicializar Selenium: {msg}")
             raise
     
     def get(self, url: str) -> None:
@@ -429,9 +462,6 @@ class DatabricksScraper:
         except Exception as exc:
             logger.error(f"Erro durante scraping: {str(exc)}", exc_info=True)
             raise
-            
-        finally:
-            self.cleanup()
     
     def _remove_duplicates(self, posts: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """Remove posts duplicados baseado no link."""

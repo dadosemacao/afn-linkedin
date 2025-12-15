@@ -29,6 +29,12 @@ class CSVHandler:
             csv_path: Caminho do arquivo CSV (usa config se não fornecido)
         """
         self.csv_path = csv_path or Path(config.output_posts_csv)
+        # Garante diretório pai para caminhos do tipo dados/arquivo.csv
+        try:
+            self.csv_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # Se o path for relativo sem pai (ex.: "arquivo.csv"), parent é "." e não precisa mkdir.
+            pass
         logger.info(f"CSVHandler inicializado: {self.csv_path}")
     
     def load_posts(self) -> List[Dict[str, str]]:
@@ -38,6 +44,13 @@ class CSVHandler:
         Returns:
             Lista de dicionários com posts
         """
+        if self.csv_path.exists() and self.csv_path.is_dir():
+            logger.error(
+                f"Caminho do CSV aponta para um diretorio (nao arquivo): {self.csv_path}. "
+                "Em Docker isso geralmente acontece por bind mount de um arquivo inexistente."
+            )
+            return []
+
         if not self.csv_path.exists():
             logger.warning(f"Arquivo CSV nao encontrado: {self.csv_path}")
             return []
@@ -50,6 +63,11 @@ class CSVHandler:
                 df['resumo'] = ''
             if 'data_resumo' not in df.columns:
                 df['data_resumo'] = ''
+
+            # Normaliza NaN (float) para string vazia para evitar erros
+            # como: AttributeError: 'float' object has no attribute 'strip'
+            df['resumo'] = df['resumo'].fillna('').astype(str)
+            df['data_resumo'] = df['data_resumo'].fillna('').astype(str)
             
             posts = df.to_dict('records')
             logger.info(f"Carregados {len(posts)} posts do CSV")
@@ -77,6 +95,33 @@ class CSVHandler:
         
         try:
             df = pd.DataFrame(posts)
+
+            # Preserva resumos já existentes quando o scraping roda novamente.
+            # Sem isso, um novo scraping sobrescreve o CSV e "apaga" resumo/data_resumo.
+            if self.csv_path.exists() and self.csv_path.is_file() and 'link' in df.columns:
+                try:
+                    existing_df = pd.read_csv(self.csv_path, encoding='utf-8')
+                    if 'link' in existing_df.columns:
+                        for col in ['resumo', 'data_resumo']:
+                            if col not in df.columns:
+                                df[col] = ''
+                            if col in existing_df.columns:
+                                # Normaliza NaN para facilitar fill.
+                                existing_df[col] = existing_df[col].fillna('').astype(str)
+
+                        # Junta para obter resumo/data_resumo existentes.
+                        existing_subset = existing_df[['link', 'resumo', 'data_resumo']].drop_duplicates(subset=['link'])
+                        merged = df.merge(existing_subset, on='link', how='left', suffixes=('', '_old'))
+
+                        for col in ['resumo', 'data_resumo']:
+                            merged[col] = merged[col].fillna('').astype(str)
+                            merged[f'{col}_old'] = merged[f'{col}_old'].fillna('').astype(str)
+                            merged[col] = merged[col].where(merged[col].str.strip() != '', merged[f'{col}_old'])
+                            merged.drop(columns=[f'{col}_old'], inplace=True)
+
+                        df = merged
+                except Exception as exc:
+                    logger.warning(f"Falha ao preservar resumos do CSV existente: {str(exc)}")
             
             # Remove duplicatas se solicitado
             if remove_duplicates and 'link' in df.columns:
