@@ -51,7 +51,15 @@ class SeleniumDriver:
             options.add_argument("--disable-dev-shm-usage")
             options.add_argument(f"user-agent={config.user_agent}")
             options.add_argument("--disable-blink-features=AutomationControlled")
-            options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            
+            # Suprime logs desnecessarios (GCM, notificacoes, etc.)
+            options.add_argument("--disable-notifications")
+            options.add_argument("--disable-infobars")
+            options.add_argument("--disable-extensions")
+            options.add_argument("--disable-background-networking")
+            options.add_argument("--disable-sync")
+            options.add_argument("--log-level=3")  # Apenas erros fatais
+            options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
             options.add_experimental_option('useAutomationExtension', False)
             
             # Define binário do browser quando disponível (Docker geralmente usa Chromium).
