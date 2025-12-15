@@ -219,6 +219,9 @@ class N8NIntegration:
             return False
         
         # Envia para n8n (array direto, cada elemento vira um item no workflow)
+        # Log de debug para diagnosticar formato do payload
+        logger.debug(f"Payload n8n (primeiro item): {str(formatted_posts[0])[:500] if formatted_posts else 'vazio'}")
+        logger.info(f"Estrutura do payload: lista com {len(formatted_posts)} items, chaves do primeiro: {list(formatted_posts[0].keys()) if formatted_posts else []}")
         success = self.client.send_data(formatted_posts)
         
         if success:
