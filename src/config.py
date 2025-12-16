@@ -58,7 +58,15 @@ class Config:
         # Scraper configurations
         self.base_url = config.get('scraper', 'base_url')
         self.category_url = config.get('scraper', 'category_url')
-        self.target_post_type = config.get('scraper', 'target_post_type')
+        target_post_type_raw = config.get('scraper', 'target_post_type')
+        # Processa lista de tipos separados por vírgula
+        self.target_post_types = [
+            t.strip().lower() 
+            for t in target_post_type_raw.split(',') 
+            if t.strip()
+        ]
+        # Mantém compatibilidade com código que usa target_post_type (singular)
+        self.target_post_type = self.target_post_types[0] if self.target_post_types else ''
         self.scroll_delay = config.getfloat('scraper', 'scroll_delay')
         self.page_load_delay = config.getfloat('scraper', 'page_load_delay')
         

@@ -218,11 +218,13 @@ class N8NIntegration:
             logger.error("Nenhum post foi formatado com sucesso")
             return False
         
-        # Envia para n8n (array direto, cada elemento vira um item no workflow)
+        # Envia para n8n com estrutura { "posts": [...] }
+        payload = {"posts": formatted_posts}
+        
         # Log de debug para diagnosticar formato do payload
         logger.debug(f"Payload n8n (primeiro item): {str(formatted_posts[0])[:500] if formatted_posts else 'vazio'}")
-        logger.info(f"Estrutura do payload: lista com {len(formatted_posts)} items, chaves do primeiro: {list(formatted_posts[0].keys()) if formatted_posts else []}")
-        success = self.client.send_data(formatted_posts)
+        logger.info(f"Estrutura do payload: objeto com chave 'posts' contendo {len(formatted_posts)} items")
+        success = self.client.send_data(payload)
         
         if success:
             logger.info(f"Enviados {len(formatted_posts)} posts com sucesso para n8n")
@@ -253,5 +255,6 @@ class N8NIntegration:
             True se sucesso
         """
         formatted = self.formatter.format_post(post, include_image)
-        return self.client.send_data([formatted])
+        payload = {"posts": [formatted]}
+        return self.client.send_data(payload)
 

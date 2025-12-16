@@ -181,7 +181,7 @@ def exemplo_8_filtrar_por_tipo():
     scraper = DatabricksScraper()
     
     # Filtrar apenas posts do tipo "Product"
-    posts = scraper.scrape_posts(filter_type="product")
+    posts = scraper.scrape_posts(filter_types=["product"])
     print(f"Posts 'Product' extraidos: {len(posts)}")
     
     scraper.cleanup()

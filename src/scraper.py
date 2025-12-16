@@ -10,7 +10,7 @@ Date: 2025-12-09
 import time
 import os
 import shutil
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Union
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -223,7 +223,7 @@ class PostExtractor:
     POST_TYPE_KEYWORDS = [
         "Product", "Engineering", "Article", "Announcement",
         "Solutions", "Customer", "Research", "Data", 
-        "Security", "Announcements"
+        "Security", "Announcements", "Technology", "Platform"
     ]
     
     def __init__(self, driver: SeleniumDriver):
@@ -418,20 +418,26 @@ class DatabricksScraper:
         self.extractor = PostExtractor(self.driver)
         logger.info("DatabricksScraper inicializado")
     
-    def scrape_posts(self, filter_type: str = None) -> List[Dict[str, str]]:
+    def scrape_posts(self, filter_types: Union[str, List[str], None] = None) -> List[Dict[str, str]]:
         """
         Executa scraping de posts.
         
         Args:
-            filter_type: Tipo de post para filtrar (usa config se não fornecido)
+            filter_types: Lista de tipos de post para filtrar (usa config se não fornecido).
+                         Aceita também string única para compatibilidade.
             
         Returns:
             Lista de posts extraídos
         """
-        filter_type = filter_type or config.target_post_type
+        if filter_types is None:
+            filter_types = config.target_post_types
+        elif isinstance(filter_types, str):
+            # Compatibilidade: aceita string única
+            filter_types = [filter_types]
         
         try:
             logger.info(f"Iniciando scraping: {config.category_url}")
+            logger.info(f"Tipos de posts alvo: {filter_types}")
             
             # Navega para página
             self.driver.get(config.category_url)
@@ -442,22 +448,26 @@ class DatabricksScraper:
                 "main, .blog-archive, .category-results-wrapper"
             )
             
-            # Rola página para carregar mais conteúdo
-            self.driver.scroll_to_bottom()
+            # Rola página múltiplas vezes para carregar mais conteúdo (lazy loading)
+            for scroll_iteration in range(3):
+                self.driver.scroll_to_bottom()
+                logger.debug(f"Scroll {scroll_iteration + 1}/3 realizado")
             
             # Extrai posts
             html = self.driver.get_page_source()
             posts = self.extractor.extract_posts_from_page(html)
             
-            # Filtra por tipo
-            if filter_type:
+            # Filtra por tipos
+            if filter_types:
                 original_count = len(posts)
+                # Normaliza tipos de filtro para lowercase
+                filter_types_lower = [ft.lower() for ft in filter_types]
                 posts = [
                     p for p in posts 
-                    if p["post_type"].lower() == filter_type.lower()
+                    if p["post_type"].lower() in filter_types_lower
                 ]
                 logger.info(
-                    f"Filtrados posts por tipo '{filter_type}': "
+                    f"Filtrados posts por tipos {filter_types}: "
                     f"{len(posts)}/{original_count}"
                 )
             

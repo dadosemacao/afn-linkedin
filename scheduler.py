@@ -2,7 +2,7 @@
 Scheduler - Sistema de Agendamento Automático
 ==============================================
 Gerencia a execução agendada da aplicação.
-Executa toda segunda-feira às 08:00 (configurável).
+Executa todos os dias às 08:00 (configurável).
 
 Author: Sistema AFN
 Date: 2025-12-09
@@ -48,7 +48,7 @@ class ApplicationScheduler:
     def __init__(self):
         """Inicializa o scheduler."""
         self.schedule_enabled = os.getenv('SCHEDULE_ENABLED', 'true').lower() == 'true'
-        self.schedule_cron = os.getenv('SCHEDULE_CRON', '0 8 * * 1,3,5')  # Seg/Qua/Sex às 08:00
+        self.schedule_cron = os.getenv('SCHEDULE_CRON', '0 8 * * *')  # Todos os dias às 08:00
         self.running = True
         self.last_execution = None
         

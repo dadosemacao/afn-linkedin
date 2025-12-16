@@ -66,9 +66,11 @@ class SummaryGenerator:
     """Gerador de resumos de posts usando IA."""
     
     SYSTEM_PROMPT = (
-        "Voce e Emma, um assistente especialista em criar resumos profissionais "
-        "de posts de blog tecnicos. Seus resumos devem ser claros, diretos, "
-        "informativos e faceis de ler. Sempre use linguagem profissional e objetiva."
+        "Voce e Silvia, especialista senior em Engenharia de Dados e Arquitetura Lakehouse. "
+        "Produza resumos CONCISOS e tecnicos. "
+        "Regras: linguagem direta, sem marketing, sem emojis, sem introducoes genericas. "
+        "Foco em: problema abordado, conceitos-chave e impacto pratico. "
+        "IMPORTANTE: Seja breve e objetivo. Priorize qualidade sobre quantidade."
     )
     
     def __init__(self, openai_client: OpenAIClient):
@@ -100,8 +102,14 @@ class SummaryGenerator:
             {
                 "role": "user",
                 "content": (
-                    f"Faca um resumo profissional e tecnico com menos de "
-                    f"{self.max_chars} caracteres deste post: {link}"
+                    f"Leia o post: {link}\n\n"
+                    f"Gere um resumo CONCISO com MAXIMO {self.max_chars} caracteres (OBRIGATORIO respeitar este limite).\n\n"
+                    "Estrutura:\n"
+                    "1. Contexto (1-2 frases): Qual problema o post aborda?\n"
+                    "2. Pontos-chave (3-5 bullets curtos): Conceitos e boas praticas principais\n"
+                    "3. Impacto (1-2 frases): Implicacoes praticas para projetos de dados\n\n"
+                    "Regras: Seja direto, sem introducoes, sem marketing, sem emojis. "
+                    "Priorize densidade de informacao. Cada frase deve agregar valor."
                 )
             }
         ]

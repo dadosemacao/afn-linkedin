@@ -28,9 +28,9 @@ services:
       
       # Agendamento (formato cron)
       - SCHEDULE_ENABLED=${SCHEDULE_ENABLED:-true}
-      - SCHEDULE_CRON=${SCHEDULE_CRON:-0 8 * * 1,3,5}
+      - SCHEDULE_CRON=${SCHEDULE_CRON:-0 8 * * *}
       # Formato: minuto hora dia mês dia-da-semana
-      # Padrao: 0 8 * * 1,3,5 = Seg/Qua/Sex as 08:00
+      # Padrao: 0 8 * * * = Todos os dias as 08:00
       
     volumes:
       # Persistência de dados
