@@ -219,6 +219,7 @@ class N8NIntegration:
             return False
         
         # Envia para n8n com estrutura { "posts": [...] }
+        # O n8n Edit Fields deve usar {{ $json.posts }} para acessar o array
         payload = {"posts": formatted_posts}
         
         # Log de debug para diagnosticar formato do payload
@@ -255,6 +256,7 @@ class N8NIntegration:
             True se sucesso
         """
         formatted = self.formatter.format_post(post, include_image)
-        payload = {"posts": [formatted]}
+        # Envia como array com um item (n8n processa cada item individualmente)
+        payload = [formatted]
         return self.client.send_data(payload)
 
