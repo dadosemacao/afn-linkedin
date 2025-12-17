@@ -1,0 +1,120 @@
+{
+  "name": "linkedin",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "343c34a4-e36f-4a72-920e-c5f1be3591dd",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "fbfbb2fd-3d35-4934-8919-4361c3eb91c8",
+      "name": "Webhook",
+      "webhookId": "343c34a4-e36f-4a72-920e-c5f1be3591dd"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Recebe os posts do webhook\n// O payload vem como: { \"posts\": [...] }\nconst posts = items[0].json.posts || [];\n\n// Arrays para armazenar os dados\nconst image = [];\nconst title = [];\nconst resumo = [];\nconst link = [];\n\n// Processa cada post\nposts.forEach((item) => {\n  image.push(item.binary || null);\n  title.push(item.titulo || '');\n  resumo.push(item.resumo || '');\n  link.push(item.link || '');\n});\n\n// Retorna objeto com todos os arrays\nreturn [\n  { json: { image, title, resumo, link, totalPosts: posts.length } }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "07824f0f-8234-4239-be2f-7762392ea2f6",
+      "name": "Process Posts"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "image, title, resumo, link",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        416,
+        0
+      ],
+      "id": "c68a976e-0298-4289-a83d-ea481270f3e1",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "person": "kXtCNHnP-S",
+        "text": "={{ $json.resumo }}\n\n#Databricks\n#DataGovernance\n#CleanRoom\n#DeltaSharing\n#DataPrivacy\n#DataCollaboration\n#DevConnect\n#DataSecurity\n#DataSharing\n#DataQuality\n\n{{ $json.link }}",
+        "shareMediaCategory": "IMAGE",
+        "binaryPropertyName": "={{ $json.image.imagem }}",
+        "additionalFields": {
+          "title": "={{ $json.title }}"
+        }
+      },
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        624,
+        0
+      ],
+      "id": "9176c5bc-8a52-49b8-b41e-d3d5e27480fd",
+      "name": "Create a post",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "33o8v0Okk1pc5E0O",
+          "name": "LinkedIn account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Posts": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Create a post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "954d064e-af2c-4bcd-8c15-b17cb46a4275",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "af16949525b8a15d8e39797642b5bbee126085bdd904435930cc8126ee24d95d"
+  },
+  "id": "GjZahWOXNUFaff6Q",
+  "tags": []
+}
