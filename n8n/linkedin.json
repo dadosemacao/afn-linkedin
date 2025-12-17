@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Recebe os posts do webhook\n// O payload vem como: { \"posts\": [...] }\nconst posts = items[0].json.posts || [];\n\n// Arrays para armazenar os dados\nconst image = [];\nconst title = [];\nconst resumo = [];\nconst link = [];\n\n// Processa cada post\nposts.forEach((item) => {\n  image.push(item.binary || null);\n  title.push(item.titulo || '');\n  resumo.push(item.resumo || '');\n  link.push(item.link || '');\n});\n\n// Retorna objeto com todos os arrays\nreturn [\n  { json: { image, title, resumo, link, totalPosts: posts.length } }\n];\n"
+        "jsCode": "// Pega a lista do item 0 - CORRIGIDO: acessando body.posts\nconst lista = items[0].json.body.posts;\n\n// Arrays ao inves de objetos\nconst image = [];\nconst title = [];\nconst resumo = [];\nconst link = [];\n\n// Alimenta os arrays\nlista.forEach((item) => {\n  image.push(item.binary);\n  title.push(item.titulo);\n  resumo.push(item.resumo);\n  link.push(item.link);\n});\n\n// Cada saida precisa ter um OBJETO dentro de json\nreturn [\n  { json: { image, title, resumo, link } }\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
