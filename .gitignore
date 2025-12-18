@@ -43,11 +43,6 @@ env/
 logs/
 *.log
 
-# Database
-database/
-*.db
-*.sqlite
-*.sqlite3
 
 # Data files
 dados/
