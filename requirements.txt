@@ -1,8 +1,11 @@
 # ================================================================
 # Databricks Post Processor - Dependencies
 # ================================================================
-# Python 3.9+
+# Python 3.9+ (Recomendado: Python 3.11 ou 3.12 para melhor compatibilidade)
 # Installation: pip install -r requirements.txt
+# ================================================================
+# NOTA: Python 3.14 pode ter problemas de compatibilidade com alguns pacotes.
+# Se encontrar erros de compilação, use Python 3.11 ou 3.12.
 # ================================================================
 
 # Web Scraping
@@ -10,8 +13,9 @@ selenium==4.16.0
 beautifulsoup4==4.12.2
 
 # Data Processing
-pandas==2.1.4
-numpy==1.26.2
+# Versões atualizadas para melhor suporte a Python 3.14
+pandas>=2.2.0
+numpy>=1.26.4
 
 # HTTP Requests
 requests==2.31.0
